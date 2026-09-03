@@ -9,21 +9,27 @@ import { io } from "../index.js";
 
 import Historique from '../models/historique.js';
 
-import { Resend } from 'resend';
 
 const NewSendEmail = async (email, title, message) => {
-
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: 'E-travelMali <onboarding@resend.dev>',
-      to: email,
-      subject: title,
-      text: message,
-    });
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: 'E-travelMali', email: process.env.GMAIL_USER },
+        to: [{ email }],
+        subject: title,
+        textContent: message,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'e-mail:", error);
+    console.error("Erreur lors de l'envoi de l'e-mail:", error.response?.data || error.message);
   }
 };
  const addTravel = async (req, res) => {

@@ -274,38 +274,51 @@ const updateUserPass = async (req, res) => {
 };
 
 
-
-
 const sendPasswordEmail = async (email, newPassword) => {
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: 'Support <onboarding@resend.dev>',
-      to: email,
-      subject: 'Votre nouveau mot de passe bien mise à jour',
-      text: `Bonjour Cher membre de E travel Application,\n\nVotre nouveau mot de passe est : ${newPassword}\n\nMerci de le modifier après connexion.\n\nCordialement,\nL'équipe Support`,
-    });
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: 'Support', email: process.env.GMAIL_USER },
+        to: [{ email }],
+        subject: 'Votre nouveau mot de passe bien mise à jour',
+        textContent: `Bonjour Cher membre de E travel Application,\n\nVotre nouveau mot de passe est : ${newPassword}\n\nMerci de le modifier après connexion.\n\nCordialement,\nL'équipe Support`,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'e-mail:", error);
+    console.error("Erreur lors de l'envoi de l'e-mail:", error.response?.data || error.message);
   }
 };
 
 const NewSendPasswordEmail = async (email, title, message) => {
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: 'E-travelMali <onboarding@resend.dev>',
-      to: email,
-      subject: title,
-      text: message,
-    });
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: 'E-travelMali', email: process.env.GMAIL_USER },
+        to: [{ email }],
+        subject: title,
+        textContent: message,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'e-mail:", error);
+    console.error("Erreur lors de l'envoi de l'e-mail:", error.response?.data || error.message);
   }
 };
-
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -402,6 +415,7 @@ const getAllHistoriques = async (req, res) => {
     });
   }
 };
+
 
 
 
