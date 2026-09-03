@@ -3,12 +3,10 @@ import bcrypt from 'bcryptjs'
 import Departement from "../models/Departement.js"
 import User from "../models/User.js"
 import Travel from "../models/Travel.js"
-import nodemailer from 'nodemailer';
 import mongoose from "mongoose"
 import { io } from "../index.js";
-
 import Historique from '../models/historique.js';
-
+import axios from 'axios';
 
 const NewSendEmail = async (email, title, message) => {
   try {

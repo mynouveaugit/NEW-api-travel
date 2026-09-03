@@ -2,9 +2,8 @@ import User from "../models/User.js"
 import bcrypt from 'bcryptjs'
 import Departement from "../models/Departement.js"
 import Historique from '../models/historique.js';
-import nodemailer from 'nodemailer';
 import { io } from "../index.js";
-import { Resend } from 'resend';
+import axios from 'axios';
 const addUser = async (req, res) => {
   try {
     const { name, email, telephone, password, ville, role,compagnie } = req.body;
