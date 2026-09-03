@@ -4,6 +4,7 @@ import Departement from "../models/Departement.js"
 import Historique from '../models/historique.js';
 import nodemailer from 'nodemailer';
 import { io } from "../index.js";
+import { Resend } from 'resend';
 const addUser = async (req, res) => {
   try {
     const { name, email, telephone, password, ville, role,compagnie } = req.body;
@@ -272,57 +273,38 @@ const updateUserPass = async (req, res) => {
   }
 };
 
+
+
+
 const sendPasswordEmail = async (email, newPassword) => {
   try {
-    let transporter = nodemailer.createTransport({
-      service: 'gmail',
-  auth: {
-  user: process.env.GMAIL_USER,
-  pass: process.env.GMAIL_PASS,
-},
-    });
-
-
-    let mailOptions = {
-      from: '"Support" <' + process.env.GMAIL_USER + '>',
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'Support <onboarding@resend.dev>',
       to: email,
       subject: 'Votre nouveau mot de passe bien mise à jour',
       text: `Bonjour Cher membre de E travel Application,\n\nVotre nouveau mot de passe est : ${newPassword}\n\nMerci de le modifier après connexion.\n\nCordialement,\nL'équipe Support`,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
     console.error("Erreur lors de l'envoi de l'e-mail:", error);
   }
 };
 
-
-const NewSendPasswordEmail = async (email,title,message) => {
+const NewSendPasswordEmail = async (email, title, message) => {
   try {
-    let transporter = nodemailer.createTransport({
-      service: 'gmail',
-  auth: {
-  user: process.env.GMAIL_USER,
-  pass: process.env.GMAIL_PASS,
-},
-    });
-
-
-    let mailOptions = {
-      from: '"E-travelMali" <' + process.env.GMAIL_USER + '>',
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'E-travelMali <onboarding@resend.dev>',
       to: email,
       subject: title,
       text: message,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
     console.error("Erreur lors de l'envoi de l'e-mail:", error);
   }
 };
-
 
 const deleteUser = async (req, res) => {
   try {

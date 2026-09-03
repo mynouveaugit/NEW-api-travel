@@ -9,25 +9,18 @@ import { io } from "../index.js";
 
 import Historique from '../models/historique.js';
 
-const NewSendEmail = async (email,title,message) => {
+import { Resend } from 'resend';
+
+const NewSendEmail = async (email, title, message) => {
+
   try {
-    let transporter = nodemailer.createTransport({
-      service: 'gmail',
-   auth: {
-  user: process.env.GMAIL_USER,
-  pass: process.env.GMAIL_PASS,
-},
-    });
-
-
-    let mailOptions = {
-      from: '"E-travelMali" <' + process.env.GMAIL_USER + '>',
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'E-travelMali <onboarding@resend.dev>',
       to: email,
       subject: title,
       text: message,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     console.log(`E-mail envoyé avec succès à ${email}`);
   } catch (error) {
     console.error("Erreur lors de l'envoi de l'e-mail:", error);
