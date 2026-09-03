@@ -1,0 +1,140 @@
+import Travel from "../models/Travel.js";
+import User from "../models/User.js";
+import Departement from "../models/Departement.js";
+
+const getTotalVoyagesPlanned = async (req, res) => {
+  try {
+    const { month, year, compagnie } = req.query;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const filter = {
+      date: { $gte: startDate, $lte: endDate },
+      payed: true,
+    };
+    
+    if (compagnie) {
+      filter.compagnie = compagnie;
+    }
+
+    const totalVoyages = await Travel.countDocuments(filter);
+    res.status(200).json({ success: true, totalVoyages });
+  } catch (err) {
+    console.error("Erreur lors du comptage des voyages planifiés :", err);
+    res.status(500).json({ success: false, message: "Erreur serveur." });
+  }
+};
+
+const getAverageParticipants = async (req, res) => {
+  try {
+    const { month, year, compagnie } = req.query;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const filter = {
+      date: { $gte: startDate, $lte: endDate },
+      payed: true,
+    };
+    
+    if (compagnie) {
+      filter.compagnie = compagnie;
+    }
+
+    const voyages = await Travel.find(filter);
+    const totalParticipants = voyages.reduce((sum, v) => sum + v.nombre, 0);
+    const averageParticipants = voyages.length ? totalParticipants / voyages.length : 0;
+
+    res.status(200).json({ success: true, averageParticipants });
+  } catch (err) {
+    console.error("Erreur lors du calcul de la moyenne des participants :", err);
+    res.status(500).json({ success: false, message: "Erreur serveur." });
+  }
+};
+
+const getDelayedTravels = async (req, res) => {
+    try {
+      const { month, year, compagnie } = req.query;
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      const currentDate = new Date();
+  
+      const filter = {
+        date: { $gte: startDate, $lte: endDate },
+        payed: true,
+        // Un voyage est considéré comme "delayed" si sa date est passée
+        date: { $lt: currentDate },
+      };
+  
+      if (compagnie) {
+        filter.compagnie = compagnie;
+      }
+  
+      const delayedTravels = await Travel.countDocuments(filter);
+      res.status(200).json({ success: true, delayedTravels });
+    } catch (err) {
+      console.error("Erreur lors du comptage des voyages retardés :", err);
+      res.status(500).json({ success: false, message: "Erreur serveur." });
+    }
+  };
+  
+const getTopDestination = async (req, res) => {
+  try {
+    const { month, year, compagnie } = req.query;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const filter = {
+      date: { $gte: startDate, $lte: endDate },
+      payed: true,
+    };
+    
+    if (compagnie) {
+      filter.compagnie = compagnie;
+    }
+
+    const topDestination = await Travel.aggregate([
+      { $match: filter },
+      { $unwind: "$places" },
+      { $group: { _id: "$places.place", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 1 },
+    ]);
+
+    res.status(200).json({ success: true, topDestination: topDestination[0]?._id || "Aucune donnée" });
+  } catch (err) {
+    console.error("Erreur lors de la récupération de la destination populaire :", err);
+    res.status(500).json({ success: false, message: "Erreur serveur." });
+  }
+};
+
+const getTerminatedTravels = async (req, res) => {
+  try {
+    const { month, year, compagnie } = req.query;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const filter = {
+      date: { $gte: startDate, $lte: endDate },
+      payed: true,
+      terminated: true,
+    };
+    
+    if (compagnie) {
+      filter.compagnie = compagnie;
+    }
+
+    const terminatedTravels = await Travel.countDocuments(filter);
+    res.status(200).json({ success: true, terminatedTravels });
+  } catch (err) {
+    console.error("Erreur lors du comptage des voyages terminés :", err);
+    res.status(500).json({ success: false, message: "Erreur serveur." });
+  }
+};
+
+export { 
+  getTotalVoyagesPlanned, 
+  getAverageParticipants, 
+  getDelayedTravels, 
+  getTopDestination, 
+  getTerminatedTravels 
+};
