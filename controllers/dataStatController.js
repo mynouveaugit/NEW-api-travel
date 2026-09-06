@@ -14,8 +14,6 @@ const getTotalUsers = async (req, res) => {
   }
 };
 
-
-
 const getTotalDepartements = async (req, res) => {
   try {
     const totalDepartements = await Departement.countDocuments();
@@ -26,15 +24,15 @@ const getTotalDepartements = async (req, res) => {
   }
 };
 
-
 const getTotalPriceCurrentMonth = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
     };
 
     if (compagnie) {
@@ -63,16 +61,17 @@ const getTotalPriceCurrentMonth = async (req, res) => {
 
 const getTerminatedTravels = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
       payed: true,
       terminated: true,
     };
-    
+
     if (compagnie) {
       filter.compagnie = compagnie;
     }
@@ -87,16 +86,17 @@ const getTerminatedTravels = async (req, res) => {
 
 const getTotalVoyagesPlanned = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
       payed: true,
-      terminated: false, // 🔹 Ajout de cette condition
+      terminated: false,
     };
-    
+
     if (compagnie) {
       filter.compagnie = compagnie;
     }
@@ -109,18 +109,18 @@ const getTotalVoyagesPlanned = async (req, res) => {
   }
 };
 
-
 const getAverageParticipants = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
       payed: true,
     };
-    
+
     if (compagnie) {
       filter.compagnie = compagnie;
     }
@@ -136,18 +136,18 @@ const getAverageParticipants = async (req, res) => {
   }
 };
 
-
 const getDelayedTravels = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
     const currentDate = new Date();
+
     const filter = {
-      date: { $gte: startDate, $lte: endDate, $lt: currentDate },
+      date: { $gte: start, $lte: end, $lt: currentDate },
       payed: true,
     };
-    
 
     if (compagnie) {
       filter.compagnie = compagnie;
@@ -163,12 +163,13 @@ const getDelayedTravels = async (req, res) => {
 
 const getTopDestination = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
       payed: true,
     };
 
@@ -180,30 +181,30 @@ const getTopDestination = async (req, res) => {
       { $match: filter },
       {
         $lookup: {
-          from: "trajets", // Nom de la collection des trajets
+          from: "trajets",
           localField: "trajetId",
           foreignField: "_id",
           as: "trajet",
         },
       },
-      { $unwind: "$trajet" }, // Convertit le tableau en objet unique
+      { $unwind: "$trajet" },
       {
         $lookup: {
-          from: "departements", // Nom de la collection des départements
+          from: "departements",
           localField: "trajet.destination",
           foreignField: "_id",
           as: "destination",
         },
       },
-      { $unwind: "$destination" }, // Convertit le tableau en objet unique
+      { $unwind: "$destination" },
       {
         $group: {
-          _id: "$destination.ville", // Regroupement par ville de destination
-          count: { $sum: 1 }, // Comptage du nombre de voyages
+          _id: "$destination.ville",
+          count: { $sum: 1 },
         },
       },
-      { $sort: { count: -1 } }, // Tri par nombre décroissant
-      { $limit: 1 }, // Récupérer uniquement la destination la plus populaire
+      { $sort: { count: -1 } },
+      { $limit: 1 },
     ]);
 
     const topDestination = result[0]?._id || "Aucune donnée";
@@ -217,11 +218,13 @@ const getTopDestination = async (req, res) => {
 
 const getUnpaidTravels = async (req, res) => {
   try {
-    const { month, year, compagnie } = req.query;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const { startDate, endDate, compagnie } = req.query;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
     const filter = {
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: start, $lte: end },
       payed: false,
     };
 
@@ -230,8 +233,6 @@ const getUnpaidTravels = async (req, res) => {
     }
 
     const unpaidTravels = await Travel.countDocuments(filter);
-
-    console.log("je suis ici",unpaidTravels)
     res.status(200).json({ success: true, unpaidTravels });
   } catch (err) {
     console.error("Erreur lors du comptage des voyages impayés :", err);
@@ -240,8 +241,3 @@ const getUnpaidTravels = async (req, res) => {
 };
 
 export {getUnpaidTravels,getTerminatedTravels, getTotalUsers,getTotalDepartements,getTotalPriceCurrentMonth, getTotalVoyagesPlanned ,getAverageParticipants,getDelayedTravels,getTopDestination}
-
-
-
-
-
