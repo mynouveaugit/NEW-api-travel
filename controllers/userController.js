@@ -8,10 +8,10 @@ const addUser = async (req, res) => {
   try {
     const { name, email, telephone, password, ville, role,compagnie } = req.body;
 
-    if (!/^\d{8}$/.test(telephone)) {
+    if (!/^\+\d{7,15}$/.test(telephone)) {
       return res.status(400).json({
         success: false,
-        error: "Le numéro de téléphone doit comporter exactement 8 chiffres.",
+        error: "Le numéro de téléphone doit être valide (indicatif + numéro).",
       });
     }
 
@@ -70,7 +70,6 @@ const addUser = async (req, res) => {
     return res.status(500).json({ success: false, error: "Server error in adding User" });
   }
 };
-
 
 
 
