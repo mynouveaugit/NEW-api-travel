@@ -445,7 +445,21 @@ export const getTravelNone = async (req, res) => {
   }
 };
 
+const getAllTrajetsApp = async (req, res) => {
+  try {
+    const trajets = await Trajet.find()
+      .populate('departure', 'ville name')
+      .populate('destination', 'ville name')
+      .populate('compagnieId', 'name image');
 
+    return res.status(200).json({ success: true, Trajets: trajets });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+export { getAllTrajetsApp };
 
 
 
