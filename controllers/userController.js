@@ -8,12 +8,10 @@ const addUser = async (req, res) => {
   try {
     const { name, email, telephone, password, ville, role,compagnie } = req.body;
 
-    if (!/^\d{11}$/.test(telephone)) {
-            console.log(telephone)
-
+    if (!/^\d{8}$/.test(telephone)) {
       return res.status(400).json({
         success: false,
-        error: "Le numéro de téléphone doit comporter exactement hiffres.",
+        error: "Le numéro de téléphone doit comporter exactement 8 chiffres.",
       });
     }
 
