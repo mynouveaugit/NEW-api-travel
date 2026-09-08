@@ -4,14 +4,28 @@ import Departement from "../models/Departement.js"
 import Historique from '../models/historique.js';
 import { io } from "../index.js";
 import axios from 'axios';
+
+const westAfricanCountries = [
+  "Mali", "Sénégal", "Côte d'Ivoire", "Burkina Faso", "Niger", "Guinée",
+  "Guinée-Bissau", "Bénin", "Togo", "Ghana", "Nigeria", "Liberia",
+  "Sierra Leone", "Gambie", "Cap-Vert", "Mauritanie"
+];
+
 const addUser = async (req, res) => {
   try {
-    const { name, email, telephone, password, ville, role,compagnie } = req.body;
+    const { name, email, telephone, password, ville, country, role, compagnie } = req.body;
 
     if (!/^\+\d{7,15}$/.test(telephone)) {
       return res.status(400).json({
         success: false,
         error: "Le numéro de téléphone doit être valide (indicatif + numéro).",
+      });
+    }
+
+    if (country && !westAfricanCountries.includes(country)) {
+      return res.status(400).json({
+        success: false,
+        error: "Le pays doit faire partie de l'Afrique de l'Ouest.",
       });
     }
 
@@ -30,6 +44,7 @@ const addUser = async (req, res) => {
       email,
       telephone,
       ville,
+      country,
       password: hashPassword,
       role,
       compagnie
@@ -41,24 +56,24 @@ const addUser = async (req, res) => {
       userId: newUser._id,
       travel: [
         {
-          status:"new",
+          status: "new",
           message: 'Bienvenue cher amis! Vous etes actuellement notre nouveau membre',
           timestamp: new Date(),
-          name:newUser.name,
-      },
+          name: newUser.name,
+        },
       ],
 
-  });
+    });
 
-  await newHistorique.save();
+    await newHistorique.save();
 
-  let mess = "Votre Mot de passe est :"+password+" Vous pouvez changer le mot de passe apres votre connexion en accedant à partir de l'application sur la barre de menu options -> profile ensuite modifier"
-  let title="Votre Mot de passe en toute sécurité"
-  if (password) {
-    await NewSendPasswordEmail(email,title,mess);
-  }
+    let mess = "Votre Mot de passe est :" + password + " Vous pouvez changer le mot de passe apres votre connexion en accedant à partir de l'application sur la barre de menu options -> profile ensuite modifier"
+    let title = "Votre Mot de passe en toute sécurité"
+    if (password) {
+      await NewSendPasswordEmail(email, title, mess);
+    }
 
-  await NewSendPasswordEmail(email,"Bienvenue cher nouveau membre","Bienvenue cher amis! Vous etes actuellement notre nouveau membre");
+    await NewSendPasswordEmail(email, "Bienvenue cher nouveau membre", "Bienvenue cher amis! Vous etes actuellement notre nouveau membre");
 
 
     // Émettre un événement socket lorsqu'un utilisateur est ajouté
@@ -74,74 +89,74 @@ const addUser = async (req, res) => {
 
 
 
-const getUsers = async(req,res)=>{
-   try {
+const getUsers = async (req, res) => {
+  try {
 
-   const Users = await User.find()
-      return res.status(200).json({success:true, Users})
-      
+    const Users = await User.find()
+    return res.status(200).json({ success: true, Users })
+
   } catch (error) {
 
-      return res.status(500).json({
-          succes:false, error:"get Users server error"
-      })
-      
+    return res.status(500).json({
+      succes: false, error: "get Users server error"
+    })
+
   }
 
 }
 
 
-const getUser = async(req,res)=>{
-    const {id} = req.params;
-    try {
- 
-    const Users = await User.findById({_id:id})
-       return res.status(200).json({success:true, Users})
-       
-   } catch (error) {
- 
-       return res.status(500).json({
-           succes:false, error:"get Users server error"
-       })
-       
-   }
- 
- }
+const getUser = async (req, res) => {
+  const { id } = req.params;
+  try {
 
- const getUserByEmail = async (req, res) => {
+    const Users = await User.findById({ _id: id })
+    return res.status(200).json({ success: true, Users })
+
+  } catch (error) {
+
+    return res.status(500).json({
+      succes: false, error: "get Users server error"
+    })
+
+  }
+
+}
+
+const getUserByEmail = async (req, res) => {
   const { email } = req.params;
   try {
     const user = await User.findOne({ email });
-    
+
     if (!user) {
       return res.status(404).json({ success: false, error: "Utilisateur non trouvé" });
     }
-    
+
     return res.status(200).json({ success: true, user });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Erreur serveur lors de la récupération de l'utilisateur" });
   }
 };
-const getView = async(req,res)=>{
-  const {id} = req.params;
+const getView = async (req, res) => {
+  const { id } = req.params;
   try {
 
-  const Users = await User.findById({_id:id})
-     return res.status(200).json({success:true, view: Users.view})
-     
- } catch (error) {
+    const Users = await User.findById({ _id: id })
+    return res.status(200).json({ success: true, view: Users.view })
 
-     return res.status(500).json({
-         success:false, error:"get Users server error"
-     })
-     
- }
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false, error: "get Users server error"
+    })
+
+  }
 
 }
- const updateUser = async (req, res) => {
+const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, telephone, password, role, ville,compagnie } = req.body;
+    const { name, email, telephone, password, role, ville, country, compagnie } = req.body;
 
     // Fetch the user to verify it exists
 
@@ -156,6 +171,13 @@ const getView = async(req,res)=>{
       return res.status(400).json({
         success: false,
         error: "Le numéro de téléphone doit comporter exactement 8 chiffres.",
+      });
+    }
+
+    if (country && !westAfricanCountries.includes(country)) {
+      return res.status(400).json({
+        success: false,
+        error: "Le pays doit faire partie de l'Afrique de l'Ouest.",
       });
     }
 
@@ -191,6 +213,7 @@ const getView = async(req,res)=>{
     }
     if (role) userUpdates.role = role;
     if (ville) userUpdates.ville = ville;
+    if (country) userUpdates.country = country;
     if (compagnie) userUpdates.compagnie = compagnie;
     const updatedUser = await User.findByIdAndUpdate(id, userUpdates, { new: true });
     return res.status(200).json({ success: true, message: "User updated successfully", user: updatedUser });
@@ -204,7 +227,7 @@ const getView = async(req,res)=>{
 const updateUserPass = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, telephone, password, role, ville,compagnie } = req.body;
+    const { name, email, telephone, password, role, ville, country, compagnie } = req.body;
 
     // Fetch the user to verify it exists
 
@@ -219,6 +242,13 @@ const updateUserPass = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Le numéro de téléphone doit comporter exactement 8 chiffres.",
+      });
+    }
+
+    if (country && !westAfricanCountries.includes(country)) {
+      return res.status(400).json({
+        success: false,
+        error: "Le pays doit faire partie de l'Afrique de l'Ouest.",
       });
     }
 
@@ -254,13 +284,14 @@ const updateUserPass = async (req, res) => {
     }
     if (role) userUpdates.role = role;
     if (ville) userUpdates.ville = ville;
+    if (country) userUpdates.country = country;
     if (compagnie) userUpdates.compagnie = compagnie;
 
 
-      // Envoi d'e-mail après mise à jour du mot de passe
-      if (password) {
-        await sendPasswordEmail(existingUser.email, password);
-      }
+    // Envoi d'e-mail après mise à jour du mot de passe
+    if (password) {
+      await sendPasswordEmail(existingUser.email, password);
+    }
     const updatedUser = await User.findByIdAndUpdate(id, userUpdates, { new: true });
     return res.status(200).json({ success: true, message: "User updated successfully", user: updatedUser });
   } catch (error) {
@@ -390,8 +421,8 @@ const verifyUser = async (req, res) => {
 const getAllHistoriques = async (req, res) => {
   try {
     const historiques = await Historique.find()
-     // Transformer les historiques pour aplatir les voyages (travel)
-     
+    // Transformer les historiques pour aplatir les voyages (travel)
+
     const formattedHistoriques = historiques.flatMap((historique) =>
       historique.travel.map((travelItem) => ({
         userId: historique.userId, // Récupérer l'utilisateur lié à l'historique
@@ -415,9 +446,4 @@ const getAllHistoriques = async (req, res) => {
 
 
 
-export {getUserByEmail,updateUserPass,getAllHistoriques,verifyUser,addUser,getUsers,getUser,updateUser,deleteUser, markUserAsViewed ,getView}
-
-
-
-
-
+export { getUserByEmail, updateUserPass, getAllHistoriques, verifyUser, addUser, getUsers, getUser, updateUser, deleteUser, markUserAsViewed, getView }
