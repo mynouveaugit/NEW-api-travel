@@ -1,15 +1,15 @@
 import Trajet from "../models/Trajet.js"
 import bcrypt from 'bcryptjs'
 import Departement from "../models/Departement.js"
-import TravelNone from "../models/TrajetNone.js";  // Vérifie que le chemin est correct
-import moment from "moment"; // Ajoutez moment.js
+import Station from "../models/Station.js";
+import TravelNone from "../models/TrajetNone.js";
+import moment from "moment";
 
 const addTrajet = async (req, res) => {
   try {
-    const { departure, destination, price, hours,duree,compagnieId } = req.body;
+    const { departure, destination, price, hours, duree, compagnieId, stations } = req.body;
 
-    // Vérifier si un trajet avec la même departure et destination existe déjà
-    const existingTrajet = await Trajet.findOne({ departure, destination,compagnieId });
+    const existingTrajet = await Trajet.findOne({ departure, destination, compagnieId });
     if (existingTrajet) {
       return res.status(400).json({
         success: false,
@@ -17,13 +17,41 @@ const addTrajet = async (req, res) => {
       });
     }
 
-    // Créer et sauvegarder le nouveau trajet
+    // Validation des gares si fournies
+    let validatedStations = [];
+    if (stations && Array.isArray(stations) && stations.length > 0) {
+      const foundStations = await Station.find({ _id: { $in: stations } });
+
+      if (foundStations.length !== stations.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Une ou plusieurs gares sont introuvables.",
+        });
+      }
+
+      const invalid = foundStations.some(
+        (s) =>
+          s.compagnieId.toString() !== compagnieId ||
+          s.departementId.toString() !== departure
+      );
+
+      if (invalid) {
+        return res.status(400).json({
+          success: false,
+          message: "Une ou plusieurs gares ne correspondent pas à la compagnie ou à la ville de départ.",
+        });
+      }
+
+      validatedStations = stations;
+    }
+
     const newTrajet = new Trajet({
       departure,
       destination,
       compagnieId,
       price,
-      duree
+      duree,
+      stations: validatedStations,
     });
 
     await newTrajet.save();
@@ -36,12 +64,104 @@ const addTrajet = async (req, res) => {
   }
 };
 
-const addHourToTrajet = async (req, res) => {
+// Ajouter une gare à un trajet existant
+const addStationToTrajet = async (req, res) => {
   try {
     const { id } = req.params; // ID du trajet
-    let { time } = req.body; // Heure à ajouter
+    const { stationId } = req.body;
 
-    // Normaliser l'heure pour qu'elle soit au format HH:mm
+    if (!stationId) {
+      return res.status(400).json({ success: false, message: "L'ID de la gare est requis." });
+    }
+
+    const trajet = await Trajet.findById(id);
+    if (!trajet) {
+      return res.status(404).json({ success: false, message: "Trajet non trouvé." });
+    }
+
+    const station = await Station.findById(stationId);
+    if (!station) {
+      return res.status(404).json({ success: false, message: "Gare non trouvée." });
+    }
+
+    // Vérifier que la gare correspond à la compagnie du trajet
+    if (station.compagnieId.toString() !== trajet.compagnieId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cette gare n'appartient pas à la compagnie de ce trajet.",
+      });
+    }
+
+    // Vérifier que la gare correspond au département de départ du trajet
+    if (station.departementId.toString() !== trajet.departure.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cette gare ne correspond pas à la ville de départ de ce trajet.",
+      });
+    }
+
+    // Vérifier si la gare est déjà associée
+    const isDuplicate = trajet.stations.some((s) => s.toString() === stationId);
+    if (isDuplicate) {
+      return res.status(400).json({
+        success: false,
+        message: "Cette gare est déjà associée à ce trajet.",
+      });
+    }
+
+    trajet.stations.push(stationId);
+    trajet.updateAt = Date.now();
+    await trajet.save();
+
+    const updatedTrajet = await Trajet.findById(id).populate('stations');
+
+    return res.status(200).json({
+      success: true,
+      message: "Gare ajoutée au trajet avec succès.",
+      trajet: updatedTrajet,
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'ajout de la gare au trajet :", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors de l'ajout de la gare au trajet.",
+    });
+  }
+};
+
+// Retirer une gare d'un trajet
+const removeStationFromTrajet = async (req, res) => {
+  try {
+    const { id, stationId } = req.params;
+
+    const trajet = await Trajet.findById(id);
+    if (!trajet) {
+      return res.status(404).json({ success: false, message: "Trajet non trouvé." });
+    }
+
+    trajet.stations = trajet.stations.filter((s) => s.toString() !== stationId);
+    trajet.updateAt = Date.now();
+    await trajet.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Gare retirée du trajet avec succès.",
+      trajet,
+    });
+  } catch (error) {
+    console.error("Erreur lors du retrait de la gare :", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors du retrait de la gare.",
+    });
+  }
+};
+
+const addHourToTrajet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { time } = req.body;
+
     const timeMatch = time.match(/^(\d{1,2}):(\d{2})$/);
     if (!timeMatch) {
       return res.status(400).json({
@@ -54,7 +174,6 @@ const addHourToTrajet = async (req, res) => {
     hours = parseInt(hours, 10);
     minutes = parseInt(minutes, 10);
 
-    // Vérifier que l'heure est entre 00 et 23 et que les minutes sont entre 00 et 59
     if (hours < 0 || hours > 23) {
       return res.status(400).json({
         success: false,
@@ -68,18 +187,15 @@ const addHourToTrajet = async (req, res) => {
       });
     }
 
-    // Normalisation de l'heure (ajout de zéro devant si nécessaire)
     hours = hours.toString().padStart(2, '0');
     minutes = minutes.toString().padStart(2, '0');
     time = `${hours}:${minutes}`;
 
-    // Rechercher le trajet
     const trajet = await Trajet.findById(id);
     if (!trajet) {
       return res.status(404).json({ success: false, message: 'Trajet non trouvé.' });
     }
 
-    // Vérifier si l'heure existe déjà
     const isDuplicate = trajet.hours.some((h) => h.time === time);
     if (isDuplicate) {
       return res.status(400).json({
@@ -88,7 +204,6 @@ const addHourToTrajet = async (req, res) => {
       });
     }
 
-    // Ajouter l'heure et sauvegarder
     trajet.hours.push({ time });
     await trajet.save();
 
@@ -108,9 +223,10 @@ const addHourToTrajet = async (req, res) => {
 const getTrajets = async (req, res) => {
   try {
     const trajets = await Trajet.find()
-      .populate('departure', 'ville') // Peuple le champ "departure" (champ `ville` uniquement)
-      .populate('destination', 'ville') // Peuple le champ "destination" (champ `ville` uniquement)
-      .populate('compagnieId', 'name image'); // Inclure les champs "name" et "image" du modèle `Compagnie`
+      .populate('departure', 'ville')
+      .populate('destination', 'ville')
+      .populate('compagnieId', 'name image')
+      .populate('stations', 'name latitude longitude');
 
     res.status(200).json({
       success: true,
@@ -125,11 +241,9 @@ const getTrajets = async (req, res) => {
   }
 };
 
-
-
 const getAppTrajets = async (req, res) => {
   try {
-    const { compagnie } = req.body; // Récupère la compagnie depuis le body de la requête
+    const { compagnie } = req.body;
 
     if (!compagnie) {
       return res.status(400).json({
@@ -138,17 +252,16 @@ const getAppTrajets = async (req, res) => {
       });
     }
 
-    // Recherche des trajets filtrés par compagnie
     const trajets = await Trajet.find({})
-      .populate('departure', 'ville') // Peuple le champ "departure" (champ `ville` uniquement)
-      .populate('destination', 'ville') // Peuple le champ "destination" (champ `ville` uniquement)
+      .populate('departure', 'ville')
+      .populate('destination', 'ville')
+      .populate('stations', 'name latitude longitude')
       .populate({
         path: 'compagnieId',
         select: 'name image',
-        match: { name: compagnie }, // Filtre par nom de la compagnie
+        match: { name: compagnie },
       });
 
-    // Filtre les trajets dont `compagnieId` est null après le peuplement
     const filteredTrajets = trajets.filter((trajet) => trajet.compagnieId);
 
     res.status(200).json({
@@ -164,22 +277,25 @@ const getAppTrajets = async (req, res) => {
   }
 };
 
-
 const getTrajet = async (req, res) => {
   try {
     const { id } = req.params;
     const trajet = await Trajet.findById(id)
       .populate({
-        path: 'departure', // Relation pour `departure`
-        select: 'name ville', // Champs spécifiques à inclure
+        path: 'departure',
+        select: 'name ville country',
       })
       .populate({
-        path: 'destination', // Relation pour `destination`
-        select: 'name ville', // Champs spécifiques à inclure
+        path: 'destination',
+        select: 'name ville country',
       })
       .populate({
-        path: 'compagnieId', // Relation pour `CompagnieId`
-        select: 'name image', // Inclure "name" et "image"
+        path: 'compagnieId',
+        select: 'name image',
+      })
+      .populate({
+        path: 'stations',
+        select: 'name latitude longitude',
       });
 
     if (!trajet) {
@@ -195,16 +311,14 @@ const getTrajet = async (req, res) => {
 
 const updateTrajet = async (req, res) => {
   try {
-    const { id } = req.params; // ID du trajet
-    const { departure, destination, price, hours, duree, compagnieId, days } = req.body; // Données à mettre à jour
+    const { id } = req.params;
+    const { departure, destination, price, hours, duree, compagnieId, days, stations } = req.body;
 
-    // Vérifier si le trajet existe
     const trajet = await Trajet.findById(id);
     if (!trajet) {
       return res.status(404).json({ success: false, message: "Trajet non trouvé." });
     }
 
-    // Validation des jours
     if (days) {
       if (!Array.isArray(days) || days.some((day) => typeof day !== "number" || day < 0 || day > 6)) {
         return res.status(400).json({
@@ -213,22 +327,51 @@ const updateTrajet = async (req, res) => {
         });
       }
 
-      // Mettre à jour les jours dans le modèle
       trajet.days = days.map((day) => ({ date: day }));
     }
 
-    // Mise à jour des champs optionnels
     if (departure) trajet.departure = departure;
     if (destination) trajet.destination = destination;
     if (price) trajet.price = price;
     if (duree) trajet.duree = duree;
     if (compagnieId) trajet.compagnieId = compagnieId;
 
-    // Validation et mise à jour des heures
+    // Validation et mise à jour des gares
+    if (stations && Array.isArray(stations)) {
+      const targetCompagnieId = compagnieId || trajet.compagnieId;
+      const targetDeparture = departure || trajet.departure;
+
+      if (stations.length > 0) {
+        const foundStations = await Station.find({ _id: { $in: stations } });
+
+        if (foundStations.length !== stations.length) {
+          return res.status(400).json({
+            success: false,
+            message: "Une ou plusieurs gares sont introuvables.",
+          });
+        }
+
+        const invalid = foundStations.some(
+          (s) =>
+            s.compagnieId.toString() !== targetCompagnieId.toString() ||
+            s.departementId.toString() !== targetDeparture.toString()
+        );
+
+        if (invalid) {
+          return res.status(400).json({
+            success: false,
+            message: "Une ou plusieurs gares ne correspondent pas à la compagnie ou à la ville de départ.",
+          });
+        }
+      }
+
+      trajet.stations = stations;
+    }
+
     if (hours && Array.isArray(hours)) {
       const validHours = hours.filter(({ time }) => {
         const match = /^(\d{2}):(\d{2})$/.exec(time);
-        if (!match) return false; // Format invalide
+        if (!match) return false;
         const [_, hour, minute] = match.map(Number);
         return hour >= 0 && hour < 24 && minute >= 0 && minute < 60;
       });
@@ -241,13 +384,11 @@ const updateTrajet = async (req, res) => {
         });
       }
 
-      trajet.hours = validHours; // Remplace les heures existantes
+      trajet.hours = validHours;
     }
 
-    // Mise à jour de la date de modification
     trajet.updateAt = Date.now();
 
-    // Sauvegarder les modifications
     const updatedTrajet = await trajet.save();
 
     return res.status(200).json({
@@ -264,18 +405,15 @@ const updateTrajet = async (req, res) => {
   }
 };
 
-
 const deleteTrajet = async (req, res) => {
   try {
-    const { id } = req.params; // Récupérer l'ID du trajet à supprimer
+    const { id } = req.params;
 
-    // Vérifier si le trajet existe
     const trajet = await Trajet.findById(id);
     if (!trajet) {
       return res.status(404).json({ success: false, message: "Trajet non trouvé." });
     }
 
-    // Supprimer le trajet
     await Trajet.findByIdAndDelete(id);
 
     return res.status(200).json({
@@ -291,13 +429,11 @@ const deleteTrajet = async (req, res) => {
   }
 };
 
-
 const addDayToTrajet = async (req, res) => {
   try {
-    const { id } = req.params; // ID du trajet
-    const { day } = req.body; // Jour à ajouter (0 pour dimanche, 1 pour lundi, etc.)
+    const { id } = req.params;
+    const { day } = req.body;
 
-    // Vérifier si le jour est valide
     if (typeof day !== "number" || day < 0 || day > 6) {
       return res.status(400).json({
         success: false,
@@ -305,13 +441,11 @@ const addDayToTrajet = async (req, res) => {
       });
     }
 
-    // Rechercher le trajet
     const trajet = await Trajet.findById(id);
     if (!trajet) {
       return res.status(404).json({ success: false, message: "Trajet non trouvé." });
     }
 
-    // Vérifier si le jour existe déjà
     const isDuplicate = trajet.days.some((d) => d.date === day);
     if (isDuplicate) {
       return res.status(400).json({
@@ -320,7 +454,6 @@ const addDayToTrajet = async (req, res) => {
       });
     }
 
-    // Ajouter le jour et sauvegarder
     trajet.days.push({ date: day });
     await trajet.save();
 
@@ -342,19 +475,16 @@ export const addTravelNone = async (req, res) => {
   try {
       const { date, time, trajetId, compagnie } = req.body;
 
-
       if (!date || !time || !trajetId || !compagnie) {
           return res.status(400).json({ message: "Tous les champs obligatoires doivent être remplis." });
       }
 
-      // Vérifier si un enregistrement existe déjà avec ces critères
       const existingTravel = await TravelNone.findOne({ date, time, trajetId, compagnie });
 
       if (existingTravel) {
           return res.status(409).json({ message: "Un trajet avec ces informations existe déjà." });
       }
 
-      // Créer et enregistrer le nouveau trajet
       const newTravel = new TravelNone({ date, time, trajetId, compagnie });
 
       await newTravel.save();
@@ -367,8 +497,6 @@ export const addTravelNone = async (req, res) => {
       return res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
-
 
 export const deleteTravelNone = async (req, res) => {
     try {
@@ -407,7 +535,6 @@ export const getAllTravelNone = async (req, res) => {
   }
 };
 
-
 export const getTravelNone = async (req, res) => {
   try {
       const { date, time, trajetId, compagnie } = req.query;
@@ -416,19 +543,16 @@ export const getTravelNone = async (req, res) => {
           return res.status(400).json({ message: "Tous les champs obligatoires doivent être fournis." });
       }
 
-      // Convertir la date reçue en objet Date
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) {
           return res.status(400).json({ message: "Format de date invalide." });
       }
 
-      // Définir les bornes pour comparer uniquement année/mois/jour
-      const startOfDay = moment(dateObj).startOf('day').toDate(); // Début du jour (00:00:00)
-      const endOfDay = moment(dateObj).endOf('day').toDate(); // Fin du jour (23:59:59)
+      const startOfDay = moment(dateObj).startOf('day').toDate();
+      const endOfDay = moment(dateObj).endOf('day').toDate();
 
-      // Requête MongoDB avec une comparaison de plage
       const travel = await TravelNone.findOne({
-          date: { $gte: startOfDay, $lt: endOfDay }, // Filtrer par jour
+          date: { $gte: startOfDay, $lt: endOfDay },
           time,
           trajetId,
           compagnie
@@ -450,7 +574,8 @@ const getAllTrajetsApp = async (req, res) => {
     const trajets = await Trajet.find()
       .populate('departure', 'ville name')
       .populate('destination', 'ville name')
-      .populate('compagnieId', 'name image');
+      .populate('compagnieId', 'name image')
+      .populate('stations', 'name latitude longitude');
 
     return res.status(200).json({ success: true, Trajets: trajets });
   } catch (error) {
@@ -461,11 +586,15 @@ const getAllTrajetsApp = async (req, res) => {
 
 export { getAllTrajetsApp };
 
-
-
-export { addDayToTrajet,getAppTrajets,addTrajet,getTrajets,getTrajet,addHourToTrajet,updateTrajet,deleteTrajet}
-
-
-
-
-
+export {
+  addDayToTrajet,
+  getAppTrajets,
+  addTrajet,
+  getTrajets,
+  getTrajet,
+  addHourToTrajet,
+  updateTrajet,
+  deleteTrajet,
+  addStationToTrajet,
+  removeStationFromTrajet,
+};

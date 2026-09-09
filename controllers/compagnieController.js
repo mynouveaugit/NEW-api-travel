@@ -1,6 +1,9 @@
 import axios from "axios";
 import multer from "multer";
 import Compagnie from "../models/Compagnie.js";
+import Station from "../models/Station.js";
+;
+
 import FormData from "form-data"; // Import nécessaire pour FormData côté serveur
 
 // Configuration de Multer pour gérer les fichiers uploadés
@@ -155,5 +158,207 @@ const deleteCompagnie = async (req, res) => {
     }
   };
   
+
+// Ajouter une gare pour une compagnie
+const addStation = async (req, res) => {
+  try {
+    const { name, compagnieId, departementId, latitude, longitude } = req.body;
+
+    if (!name || !compagnieId || !departementId || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ success: false, error: "Tous les champs sont requis." });
+    }
+
+    const compagnie = await Compagnie.findById(compagnieId);
+    if (!compagnie) {
+      return res.status(404).json({ success: false, error: "Compagnie non trouvée." });
+    }
+
+    const departement = await Departement.findById(departementId);
+    if (!departement) {
+      return res.status(404).json({ success: false, error: "Département non trouvé." });
+    }
+
+    const existingStation = await Station.findOne({ name, compagnieId });
+    if (existingStation) {
+      return res.status(400).json({ success: false, error: "Cette gare existe déjà pour cette compagnie." });
+    }
+
+    const newStation = new Station({
+      name,
+      compagnieId,
+      departementId,
+      latitude,
+      longitude,
+    });
+
+    await newStation.save();
+
+    return res.status(201).json({ success: true, station: newStation });
+  } catch (error) {
+    console.error("Erreur lors de l'ajout d'une gare :", error);
+    return res.status(500).json({ success: false, error: "Erreur du serveur lors de l'ajout d'une gare." });
+  }
+};
+
+// Récupérer toutes les gares
+const getStations = async (req, res) => {
+  try {
+    const stations = await Station.find()
+      .populate('compagnieId', 'name image')
+      .populate('departementId', 'name ville country');
+
+    return res.status(200).json({ success: true, stations });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: "Erreur du serveur lors de la récupération des gares.",
+    });
+  }
+};
+
+// Récupérer les gares d'une compagnie
+const getStationsByCompagnie = async (req, res) => {
+  try {
+    const { compagnieId } = req.params;
+
+    const stations = await Station.find({ compagnieId })
+      .populate('departementId', 'name ville country');
+
+    return res.status(200).json({ success: true, stations });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des gares :", error);
+    return res.status(500).json({
+      success: false,
+      error: "Erreur du serveur lors de la récupération des gares.",
+    });
+  }
+};
+
+// Récupérer les gares d'une compagnie filtrées par département (utile pour le formulaire de trajet)
+const getStationsByCompagnieAndDepartement = async (req, res) => {
+  try {
+    const { compagnieId, departementId } = req.params;
+
+    const stations = await Station.find({ compagnieId, departementId })
+      .populate('departementId', 'name ville country');
+
+    return res.status(200).json({ success: true, stations });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des gares :", error);
+    return res.status(500).json({
+      success: false,
+      error: "Erreur du serveur lors de la récupération des gares.",
+    });
+  }
+};
+
+// Récupérer une seule gare par ID
+const getStation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const station = await Station.findById(id)
+      .populate('compagnieId', 'name image')
+      .populate('departementId', 'name ville country');
+
+    if (!station) {
+      return res.status(404).json({ success: false, error: "Gare non trouvée." });
+    }
+
+    return res.status(200).json({ success: true, station });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: "Erreur du serveur lors de la récupération de la gare.",
+    });
+  }
+};
+
+// Modifier une gare
+const editStation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, departementId, latitude, longitude } = req.body;
+
+    const station = await Station.findById(id);
+    if (!station) {
+      return res.status(404).json({ success: false, error: "Gare non trouvée." });
+    }
+
+    if (departementId) {
+      const departement = await Departement.findById(departementId);
+      if (!departement) {
+        return res.status(404).json({ success: false, error: "Département non trouvé." });
+      }
+      station.departementId = departementId;
+    }
+
+    if (name) station.name = name;
+    if (latitude !== undefined) station.latitude = latitude;
+    if (longitude !== undefined) station.longitude = longitude;
+
+    station.updateAt = Date.now();
+
+    await station.save();
+
+    return res.status(200).json({ success: true, station });
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour de la gare :", error);
+    return res.status(500).json({ success: false, error: "Erreur du serveur lors de la mise à jour de la gare." });
+  }
+};
+
+// Supprimer une gare
+const deleteStation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const station = await Station.findById(id);
+    if (!station) {
+      return res.status(404).json({ success: false, error: "Gare non trouvée." });
+    }
+
+    await Station.findByIdAndDelete(id);
+
+    return res.status(200).json({ success: true, message: "Gare supprimée avec succès." });
+  } catch (error) {
+    console.error("Erreur lors de la suppression de la gare :", error);
+    return res.status(500).json({ success: false, error: "Erreur du serveur lors de la suppression de la gare." });
+  }
+};
+
+export {
+  addStation,
+  getStations,
+  getStationsByCompagnie,
+  getStationsByCompagnieAndDepartement,
+  getStation,
+  editStation,
+  deleteStation,
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   export { addCompagnie, getCompagnies, getCompagnie, deleteCompagnie, editCompagnie, upload };
   
+
+
