@@ -5,6 +5,7 @@ import Station from "../models/Station.js";
 ;
 
 import FormData from "form-data"; // Import nécessaire pour FormData côté serveur
+import Departement from "../models/Departement.js";
 
 // Configuration de Multer pour gérer les fichiers uploadés
 const upload = multer({ storage: multer.memoryStorage() });
