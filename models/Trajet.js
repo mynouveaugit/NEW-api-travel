@@ -11,15 +11,13 @@ const TrajetSchema = new mongoose.Schema({
   ],
   hours: [
     {
-      time: {
-        type: String,
-      }
+      time: { type: String },
+      days: [{ type: Number }],
+      maxPlaces: { type: Number, default: 30 },
     }
   ],
   days: [
-    {
-      date: { type: Number },
-    }
+    { date: { type: Number } },
   ],
   createAt: { type: Date, default: Date.now },
   updateAt: { type: Date, default: Date.now },

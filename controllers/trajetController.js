@@ -157,68 +157,7 @@ const removeStationFromTrajet = async (req, res) => {
   }
 };
 
-const addHourToTrajet = async (req, res) => {
-  try {
-    const { id } = req.params;
-    let { time } = req.body;
 
-    const timeMatch = time.match(/^(\d{1,2}):(\d{2})$/);
-    if (!timeMatch) {
-      return res.status(400).json({
-        success: false,
-        message: `L'heure est invalide : ${time}. Le format attendu est HH:mm.`,
-      });
-    }
-
-    let [_, hours, minutes] = timeMatch;
-    hours = parseInt(hours, 10);
-    minutes = parseInt(minutes, 10);
-
-    if (hours < 0 || hours > 23) {
-      return res.status(400).json({
-        success: false,
-        message: `L'heure doit être comprise entre 00 et 23.`,
-      });
-    }
-    if (minutes < 0 || minutes > 59) {
-      return res.status(400).json({
-        success: false,
-        message: `Les minutes doivent être comprises entre 00 et 59.`,
-      });
-    }
-
-    hours = hours.toString().padStart(2, '0');
-    minutes = minutes.toString().padStart(2, '0');
-    time = `${hours}:${minutes}`;
-
-    const trajet = await Trajet.findById(id);
-    if (!trajet) {
-      return res.status(404).json({ success: false, message: 'Trajet non trouvé.' });
-    }
-
-    const isDuplicate = trajet.hours.some((h) => h.time === time);
-    if (isDuplicate) {
-      return res.status(400).json({
-        success: false,
-        message: `L'heure ${time} existe déjà pour ce trajet.`,
-      });
-    }
-
-    trajet.hours.push({ time });
-    await trajet.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Heure ajoutée avec succès.',
-      trajet,
-    });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Erreur serveur lors de l'ajout de l'heure." });
-  }
-};
 
 const getTrajets = async (req, res) => {
   try {
@@ -309,25 +248,96 @@ const getTrajet = async (req, res) => {
   }
 };
 
+const addHourToTrajet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { time, days, maxPlaces } = req.body;
+
+    const timeMatch = time.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) {
+      return res.status(400).json({
+        success: false,
+        message: `L'heure est invalide : ${time}. Le format attendu est HH:mm.`,
+      });
+    }
+
+    let [_, hours, minutes] = timeMatch;
+    hours = parseInt(hours, 10);
+    minutes = parseInt(minutes, 10);
+
+    if (hours < 0 || hours > 23) {
+      return res.status(400).json({
+        success: false,
+        message: `L'heure doit être comprise entre 00 et 23.`,
+      });
+    }
+    if (minutes < 0 || minutes > 59) {
+      return res.status(400).json({
+        success: false,
+        message: `Les minutes doivent être comprises entre 00 et 59.`,
+      });
+    }
+
+    hours = hours.toString().padStart(2, '0');
+    minutes = minutes.toString().padStart(2, '0');
+    time = `${hours}:${minutes}`;
+
+    if (!Array.isArray(days) || days.length === 0 || days.some((d) => typeof d !== "number" || d < 0 || d > 6)) {
+      return res.status(400).json({
+        success: false,
+        message: "Veuillez sélectionner au moins un jour valide (0 à 6) pour cette heure.",
+      });
+    }
+
+    if (maxPlaces !== undefined && (typeof maxPlaces !== "number" || maxPlaces <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Le nombre de places maximum doit être un nombre positif.",
+      });
+    }
+
+    const trajet = await Trajet.findById(id);
+    if (!trajet) {
+      return res.status(404).json({ success: false, message: 'Trajet non trouvé.' });
+    }
+
+    const isDuplicate = trajet.hours.some((h) => h.time === time);
+    if (isDuplicate) {
+      return res.status(400).json({
+        success: false,
+        message: `L'heure ${time} existe déjà pour ce trajet.`,
+      });
+    }
+
+    trajet.hours.push({
+      time,
+      days,
+      maxPlaces: maxPlaces && maxPlaces > 0 ? maxPlaces : 30,
+    });
+    trajet.updateAt = Date.now();
+    await trajet.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Heure ajoutée avec succès.',
+      trajet,
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Erreur serveur lors de l'ajout de l'heure." });
+  }
+};
+
 const updateTrajet = async (req, res) => {
   try {
     const { id } = req.params;
-    const { departure, destination, price, hours, duree, compagnieId, days, stations } = req.body;
+    const { departure, destination, price, hours, duree, compagnieId, stations } = req.body;
 
     const trajet = await Trajet.findById(id);
     if (!trajet) {
       return res.status(404).json({ success: false, message: "Trajet non trouvé." });
-    }
-
-    if (days) {
-      if (!Array.isArray(days) || days.some((day) => typeof day !== "number" || day < 0 || day > 6)) {
-        return res.status(400).json({
-          success: false,
-          message: "La liste des jours est invalide. Elle doit contenir des nombres entre 0 et 6.",
-        });
-      }
-
-      trajet.days = days.map((day) => ({ date: day }));
     }
 
     if (departure) trajet.departure = departure;
@@ -336,7 +346,6 @@ const updateTrajet = async (req, res) => {
     if (duree) trajet.duree = duree;
     if (compagnieId) trajet.compagnieId = compagnieId;
 
-    // Validation et mise à jour des gares
     if (stations && Array.isArray(stations)) {
       const targetCompagnieId = compagnieId || trajet.compagnieId;
       const targetDeparture = departure || trajet.departure;
@@ -369,22 +378,29 @@ const updateTrajet = async (req, res) => {
     }
 
     if (hours && Array.isArray(hours)) {
-      const validHours = hours.filter(({ time }) => {
+      const validHours = hours.filter(({ time, days, maxPlaces }) => {
         const match = /^(\d{2}):(\d{2})$/.exec(time);
         if (!match) return false;
         const [_, hour, minute] = match.map(Number);
-        return hour >= 0 && hour < 24 && minute >= 0 && minute < 60;
+        const validTime = hour >= 0 && hour < 24 && minute >= 0 && minute < 60;
+        const validDays = Array.isArray(days) && days.length > 0 && days.every((d) => typeof d === "number" && d >= 0 && d <= 6);
+        const validPlaces = maxPlaces === undefined || (typeof maxPlaces === "number" && maxPlaces > 0);
+        return validTime && validDays && validPlaces;
       });
 
       if (validHours.length !== hours.length) {
         return res.status(400).json({
           success: false,
           message:
-            "Certaines heures sont invalides. Assurez-vous que les heures sont au format HH:mm.",
+            "Certaines heures sont invalides. Vérifiez le format (HH:mm), les jours sélectionnés et le nombre de places.",
         });
       }
 
-      trajet.hours = validHours;
+      trajet.hours = validHours.map((h) => ({
+        time: h.time,
+        days: h.days,
+        maxPlaces: h.maxPlaces && h.maxPlaces > 0 ? h.maxPlaces : 30,
+      }));
     }
 
     trajet.updateAt = Date.now();
