@@ -11,6 +11,19 @@ const westAfricanCountries = [
   "Sierra Leone", "Gambie", "Cap-Vert", "Mauritanie"
 ];
 
+// Normalise le champ compagnie envoyé par le client : accepte un tableau,
+// une string unique, ou undefined/null (=> tableau vide), retire les doublons
+// et les valeurs vides.
+const normalizeCompagnie = (compagnie) => {
+  let arr = [];
+  if (Array.isArray(compagnie)) {
+    arr = compagnie;
+  } else if (typeof compagnie === "string" && compagnie.trim() !== "") {
+    arr = [compagnie];
+  }
+  return [...new Set(arr.map((c) => String(c).trim()).filter((c) => c.length > 0))];
+};
+
 const addUser = async (req, res) => {
   try {
     const { name, email, telephone, password, ville, country, role, compagnie } = req.body;
@@ -38,6 +51,15 @@ const addUser = async (req, res) => {
       return res.status(400).json({ success: false, error: message });
     }
 
+    const normalizedCompagnie = normalizeCompagnie(compagnie);
+
+    if (role === "seller" && normalizedCompagnie.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Veuillez sélectionner au moins une compagnie pour le rôle de vendeur.",
+      });
+    }
+
     const hashPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
       name,
@@ -47,7 +69,7 @@ const addUser = async (req, res) => {
       country,
       password: hashPassword,
       role,
-      compagnie
+      compagnie: role === "seller" ? normalizedCompagnie : [],
     });
 
     await newUser.save();
@@ -204,6 +226,8 @@ const updateUser = async (req, res) => {
       }
     }
 
+    const effectiveRole = role || existingUser.role;
+
     const userUpdates = {};
     if (name) userUpdates.name = name;
     if (email) userUpdates.email = email;
@@ -214,7 +238,25 @@ const updateUser = async (req, res) => {
     if (role) userUpdates.role = role;
     if (ville) userUpdates.ville = ville;
     if (country) userUpdates.country = country;
-    if (compagnie) userUpdates.compagnie = compagnie;
+
+    if (compagnie !== undefined) {
+      const normalizedCompagnie = normalizeCompagnie(compagnie);
+
+      if (effectiveRole === "seller" && normalizedCompagnie.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Veuillez sélectionner au moins une compagnie pour le rôle de vendeur.",
+        });
+      }
+
+      userUpdates.compagnie = effectiveRole === "seller" ? normalizedCompagnie : [];
+    } else if (role && role !== "seller") {
+      // Le rôle a changé vers un rôle non-seller sans que compagnie soit envoyée : on vide.
+      userUpdates.compagnie = [];
+    }
+
+    userUpdates.updateAt = Date.now();
+
     const updatedUser = await User.findByIdAndUpdate(id, userUpdates, { new: true });
     return res.status(200).json({ success: true, message: "User updated successfully", user: updatedUser });
   } catch (error) {
@@ -275,6 +317,8 @@ const updateUserPass = async (req, res) => {
       }
     }
 
+    const effectiveRole = role || existingUser.role;
+
     const userUpdates = {};
     if (name) userUpdates.name = name;
     if (email) userUpdates.email = email;
@@ -285,7 +329,23 @@ const updateUserPass = async (req, res) => {
     if (role) userUpdates.role = role;
     if (ville) userUpdates.ville = ville;
     if (country) userUpdates.country = country;
-    if (compagnie) userUpdates.compagnie = compagnie;
+
+    if (compagnie !== undefined) {
+      const normalizedCompagnie = normalizeCompagnie(compagnie);
+
+      if (effectiveRole === "seller" && normalizedCompagnie.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Veuillez sélectionner au moins une compagnie pour le rôle de vendeur.",
+        });
+      }
+
+      userUpdates.compagnie = effectiveRole === "seller" ? normalizedCompagnie : [];
+    } else if (role && role !== "seller") {
+      userUpdates.compagnie = [];
+    }
+
+    userUpdates.updateAt = Date.now();
 
 
     // Envoi d'e-mail après mise à jour du mot de passe

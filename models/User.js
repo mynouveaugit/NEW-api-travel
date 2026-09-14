@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["admin", "user", "seller"], default: "user" },
   ville: { type: String },
   country: { type: String },
-  compagnie: { type: String },
+  compagnie: { type: [String], default: [] },
   createAt: { type: Date, default: Date.now },
   updateAt: { type: Date, default: Date.now },
   view: { type: Boolean, default: false },

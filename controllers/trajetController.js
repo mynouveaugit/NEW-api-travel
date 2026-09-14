@@ -17,6 +17,49 @@ const addTrajet = async (req, res) => {
       });
     }
 
+    // Validation des heures/jours si fournies
+    let validatedHours = [];
+    if (hours && Array.isArray(hours) && hours.length > 0) {
+      const seenTimes = new Set();
+      for (const h of hours) {
+        const match = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(h?.time);
+        if (!match) {
+          return res.status(400).json({
+            success: false,
+            message: `L'heure est invalide : ${h?.time}. Le format attendu est HH:mm.`,
+          });
+        }
+
+        if (!Array.isArray(h.days) || h.days.length === 0 || h.days.some((d) => typeof d !== "number" || d < 0 || d > 6)) {
+          return res.status(400).json({
+            success: false,
+            message: `Veuillez sélectionner au moins un jour valide (0 à 6) pour l'heure ${h.time}.`,
+          });
+        }
+
+        if (h.maxPlaces !== undefined && (typeof h.maxPlaces !== "number" || h.maxPlaces <= 0)) {
+          return res.status(400).json({
+            success: false,
+            message: `Le nombre de places maximum pour l'heure ${h.time} doit être un nombre positif.`,
+          });
+        }
+
+        if (seenTimes.has(h.time)) {
+          return res.status(400).json({
+            success: false,
+            message: `L'heure ${h.time} est dupliquée dans la liste des heures.`,
+          });
+        }
+        seenTimes.add(h.time);
+
+        validatedHours.push({
+          time: h.time,
+          days: h.days,
+          maxPlaces: h.maxPlaces && h.maxPlaces > 0 ? h.maxPlaces : 30,
+        });
+      }
+    }
+
     // Validation des gares si fournies
     let validatedStations = [];
     if (stations && Array.isArray(stations) && stations.length > 0) {
@@ -51,6 +94,7 @@ const addTrajet = async (req, res) => {
       compagnieId,
       price,
       duree,
+      hours: validatedHours,
       stations: validatedStations,
     });
 
