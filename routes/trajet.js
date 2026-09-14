@@ -2,7 +2,7 @@
 
 import express from 'express'
 import authMiddleware from '../middleware/authMiddleware.js'
-import {getTravelNone,getAllTravelNone,addTravelNone,deleteTravelNone,addDayToTrajet,getAppTrajets,addTrajet,getTrajets,getTrajet,addHourToTrajet,updateTrajet,deleteTrajet, getAllTrajetsApp} from '../controllers/trajetController.js'
+import {getTravelNone,getAllTravelNone,addTravelNone,deleteTravelNone,addDayToTrajet,getAppTrajets,addTrajet,getTrajets,getTrajet,addHourToTrajet,updateTrajet,deleteTrajet, getAllTrajetsApp, getTravelNoneByTrajet} from '../controllers/trajetController.js'
 
 const router = express.Router()
 
