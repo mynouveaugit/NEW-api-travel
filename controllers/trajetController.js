@@ -530,31 +530,40 @@ const addDayToTrajet = async (req, res) => {
     });
   }
 };
-
 export const addTravelNone = async (req, res) => {
   try {
-      const { date, time, trajetId, compagnie } = req.body;
+    const { date, time, trajetId, compagnie, placesRestantes } = req.body;
 
-      if (!date || !time || !trajetId || !compagnie) {
-          return res.status(400).json({ message: "Tous les champs obligatoires doivent être remplis." });
+    if (!date || !time || !trajetId || !compagnie) {
+      return res.status(400).json({ message: "Tous les champs obligatoires doivent être remplis." });
+    }
+
+    let normalizedPlaces = null;
+    if (placesRestantes !== undefined && placesRestantes !== null && placesRestantes !== '') {
+      const parsed = Number(placesRestantes);
+      if (isNaN(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+        return res.status(400).json({
+          message: "Le nombre de places restantes doit être un entier positif ou nul.",
+        });
       }
+      normalizedPlaces = parsed;
+    }
 
-      const existingTravel = await TravelNone.findOne({ date, time, trajetId, compagnie });
+    const existingTravel = await TravelNone.findOne({ date, time, trajetId, compagnie });
 
-      if (existingTravel) {
-          return res.status(409).json({ message: "Un trajet avec ces informations existe déjà." });
-      }
+    if (existingTravel) {
+      return res.status(409).json({ message: "Un trajet avec ces informations existe déjà." });
+    }
 
-      const newTravel = new TravelNone({ date, time, trajetId, compagnie });
+    const newTravel = new TravelNone({ date, time, trajetId, compagnie, placesRestantes: normalizedPlaces });
 
-      await newTravel.save();
-      console.log("Objet enregistré :", newTravel);
+    await newTravel.save();
 
-      return res.status(201).json({ success: true, message: "Trajet indisponible ajouté avec succès." });
+    return res.status(201).json({ success: true, message: "Trajet indisponible ajouté avec succès." });
 
   } catch (error) {
-      console.error("Erreur lors de l'ajout du Travel:", error);
-      return res.status(500).json({ message: "Erreur serveur" });
+    console.error("Erreur lors de l'ajout du Travel:", error);
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
@@ -579,7 +588,9 @@ export const deleteTravelNone = async (req, res) => {
 
 export const getAllTravelNone = async (req, res) => {
   try {
-      const travels = await TravelNone.find().populate({
+    const travels = await TravelNone.find()
+      .sort({ updateAt: -1 })
+      .populate({
         path: "trajetId",
         populate: [
           { path: "departure", select: "name ville" },
@@ -587,45 +598,48 @@ export const getAllTravelNone = async (req, res) => {
           { path: "compagnieId", select: "name image" },
         ],
       });
-      res.status(200).json({ success: true, travels });
+
+    res.status(200).json({ success: true, travels });
 
   } catch (error) {
-      console.error("Erreur lors de la récupération des Travels:", error);
-      res.status(500).json({ success: false, message: "Erreur serveur" });
+    console.error("Erreur lors de la récupération des Travels:", error);
+    res.status(500).json({ success: false, message: "Erreur serveur" });
   }
 };
 
 export const getTravelNone = async (req, res) => {
   try {
-      const { date, time, trajetId, compagnie } = req.query;
+    const { date, time, trajetId, compagnie } = req.query;
 
-      if (!date || !time || !trajetId || !compagnie) {
-          return res.status(400).json({ message: "Tous les champs obligatoires doivent être fournis." });
-      }
+    if (!date || !time || !trajetId || !compagnie) {
+      return res.status(400).json({ message: "Tous les champs obligatoires doivent être fournis." });
+    }
 
-      const dateObj = new Date(date);
-      if (isNaN(dateObj.getTime())) {
-          return res.status(400).json({ message: "Format de date invalide." });
-      }
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return res.status(400).json({ message: "Format de date invalide." });
+    }
 
-      const startOfDay = moment(dateObj).startOf('day').toDate();
-      const endOfDay = moment(dateObj).endOf('day').toDate();
+    const startOfDay = moment(dateObj).startOf('day').toDate();
+    const endOfDay = moment(dateObj).endOf('day').toDate();
 
-      const travel = await TravelNone.findOne({
-          date: { $gte: startOfDay, $lt: endOfDay },
-          time,
-          trajetId,
-          compagnie
-      });
-      console.log(travel)
-      if (!travel) {
-          return res.status(404).json({ message: "Aucun trajet indisponible trouvé." });
-      }
+    const travel = await TravelNone.findOne({
+      date: { $gte: startOfDay, $lt: endOfDay },
+      time,
+      trajetId,
+      compagnie
+    });
 
-      res.status(200).json({ success: true, travel });
+    if (!travel) {
+      return res.status(404).json({ message: "Aucun trajet indisponible trouvé." });
+    }
+
+    // placesRestantes: null → trajet totalement indisponible ce créneau
+    // placesRestantes: 0..N → nombre de places encore réservables
+    res.status(200).json({ success: true, travel });
   } catch (error) {
-      console.error("Erreur lors de la récupération du TravelNone:", error);
-      return res.status(500).json({ message: "Erreur serveur" });
+    console.error("Erreur lors de la récupération du TravelNone:", error);
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
