@@ -292,6 +292,31 @@ const getTrajet = async (req, res) => {
   }
 };
 
+export const getTravelNoneByTrajet = async (req, res) => {
+  try {
+    const { trajetId } = req.params;
+
+    const travels = await TravelNone.find({ trajetId });
+
+    // Regroupe par date (format YYYY-MM-DD) puis par heure
+    // { "2026-09-20": { "08:00": null, "14:00": 3 }, ... }
+    const restrictionsByDate = {};
+
+    travels.forEach((t) => {
+      const dateKey = moment(t.date).format('YYYY-MM-DD');
+      if (!restrictionsByDate[dateKey]) {
+        restrictionsByDate[dateKey] = {};
+      }
+      restrictionsByDate[dateKey][t.time] = t.placesRestantes;
+    });
+
+    return res.status(200).json({ success: true, restrictions: restrictionsByDate });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des restrictions du trajet:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
 const addHourToTrajet = async (req, res) => {
   try {
     const { id } = req.params;

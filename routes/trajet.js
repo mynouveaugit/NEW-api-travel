@@ -14,6 +14,7 @@ router.post('/app', getAppTrajets);
 router.post('/add',authMiddleware,addTrajet)
 router.post('/addnone',authMiddleware,addTravelNone)
 router.get('/:id',authMiddleware,getTrajet)
+router.get('/trajet/none/by-trajet/:trajetId', getTravelNoneByTrajet);
 router.put('/:id',authMiddleware,updateTrajet)
 router.post('/addhours/:id',authMiddleware,addHourToTrajet)
 router.post('/addDay/:id',authMiddleware,addDayToTrajet)
